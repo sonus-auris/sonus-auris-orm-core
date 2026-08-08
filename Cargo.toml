@@ -2,7 +2,7 @@
 name = "sonus-auris-orm-core"
 version = "0.1.0"
 edition = "2021"
-description = "Opaque, role-aware SeaORM query boundary for sonus-auris"
+description = "Opaque, role-aware SeaORM query boundary for sonus-auris. Schema imported from oresoftware/k8s-libs-and-shared-defs."
 repository = "https://github.com/sonus-auris/sonus-auris-orm-core"
 publish = false
 
