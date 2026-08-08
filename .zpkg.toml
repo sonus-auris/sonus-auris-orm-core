@@ -3,7 +3,6 @@ org = "sonus-auris"
 name = "sonus-auris-orm-core"
 version = "0.1.0"
 description = "Canonical opaque SeaORM boundary for the sonus-auris organization"
-license = "MIT"
 
 [package.repository]
 vcs = "git"
@@ -30,9 +29,9 @@ dir = ".vendor/.zed"
 dir = "."
 adapter = "rust"
 
-[targets.rust.native]
-registry = "crates-io"
-package = "sonus-auris-orm-core"
+# This private boundary is consumed through an exact reviewed Git/Zed package
+# object. Do not advertise a native registry until Cargo publication and
+# licensing are explicitly enabled and certified.
 
 [scripts]
 format = "cargo fmt --all -- --check"
