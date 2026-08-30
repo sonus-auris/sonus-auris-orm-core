@@ -42,7 +42,7 @@ fn every_write_symbol_is_feature_gated() {
 }
 
 #[test]
-fn shared_schema_source_is_exact_and_external() {
+fn historical_shared_schema_provenance_is_preserved_but_not_a_dependency() {
     let lock = read("shared-defs.lock.json");
     for contract in [
         "c8bdc06d74746acc6439f9527ebd02697fdf028b",
@@ -54,7 +54,8 @@ fn shared_schema_source_is_exact_and_external() {
     }
 
     let zpkg = read(".zpkg.toml");
-    assert!(zpkg.contains("\"oresoftware/k8s-libs-and-shared-defs\""));
+    assert!(zpkg.contains("\"sonus-auris/sonus-auris-lib-core\""));
+    assert!(!zpkg.contains("\"oresoftware/k8s-libs-and-shared-defs\""));
 }
 
 #[test]

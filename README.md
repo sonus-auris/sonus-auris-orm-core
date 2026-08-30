@@ -1,70 +1,143 @@
 # sonus-auris-orm-core
 
-Canonical **SeaORM** boundary for the `sonus-auris` organization. It is the only repository that may publish the shared Sonus Auris ORM package; `sonus-auris-lib` may consume or re-export it temporarily but must not define a second authoritative ORM crate.
+Opaque Rust persistence boundary for the `sonus-auris` organization. This
+repository is a derived runtime package: it is not an independently editable
+schema, SQL, or migration authority.
 
-Governed by [`sonus-auris/.github/SERVICE_AND_DATA_ARCHITECTURE.md`](https://github.com/sonus-auris/.github/blob/main/SERVICE_AND_DATA_ARCHITECTURE.md).
+The current implementation is a SeaORM-based read-only/read-write shell. The
+target described here is **not yet a completed cutover**: Diesel plus
+`diesel-async` becomes the primary Rust data path, while SeaORM remains a
+secondary, DB-first representation used for independent parity checks and any
+named operations that deliberately remain on SeaORM.
 
-## Contract
+The authored persistence sources, PostgreSQL extensions, desired SQL, and
+generation evidence belong in
+[`sonus-auris-lib-core`](https://github.com/sonus-auris/sonus-auris-lib-core).
+See its `docs/dual-source-persistence.md` for the complete target pipeline.
 
-| Consumer | Feature | Public surface |
+## Non-negotiable namespace gate
+
+The inherited shared SQL currently creates unqualified `sound_recorder_*`
+tables, which resolve to `public` under the shared-platform convention. This
+crate currently pins `search_path=sonus_auris`, and
+[`shared-defs.lock.json`](shared-defs.lock.json) records that same dedicated
+schema name. Those claims conflict.
+
+Do not publish generated entities or change the connection code by guessing
+which namespace is intended. Before runtime cutover, the migration job must
+dump the live catalog and provider migration ledger, identify the real
+namespace, and record the approved decision in lib-core. Moving an existing
+table from `public` to `sonus_auris` is a separate expand/contract migration,
+not a side effect of extracting ownership from the shared repository.
+
+## Boundary contract
+
+| Consumer | Capability | Public surface |
 | --- | --- | --- |
-| Web/default consumer | `read-only` (default) | `ReadContext`, role-aware connection, and named functions under `read` |
-| API server | `read-write` | Adds `WriteContext` and named functions under `write` |
+| Web/default consumer | `read-only` | Opaque read context and named, owner-scoped reads |
+| API server | `read-write` | Opaque write context and named product operations |
+| Admin server | Separate admin capability | Explicitly approved admin operations; never inherited through the public runtime role |
+| Migration job | None from this crate | Uses the lib-core desired release and `dpm` with a dedicated DDL principal |
 
-Raw SeaORM/SQLx connections, entity managers, query builders, and backend error types stay private. A default consumer cannot import `WriteContext`, `connect_read_write`, or the `write` module; a compile-fail doctest enforces that. Note this is an intent-and-ergonomics boundary, not a security one: Cargo feature resolution is additive, so any crate in a consumer's graph that enables `read-write` turns those symbols on. The authoritative control is the SELECT-only database role.
+Raw Diesel connections, SeaORM/SQLx connections, query builders, generated
+entities, and backend errors remain private. Cargo feature selection expresses
+API intent; it is not the security boundary. PostgreSQL roles, grants, RLS,
+separate database identities, and audited runtime connection checks enforce the
+boundary.
 
-`connect_read_only` pins `search_path=sonus_auris`, sets `default_transaction_read_only=on` in the PostgreSQL startup packet, and verifies both settings before returning an opaque context. `connect_read_write` is compiled only with `read-write` and rejects a transaction-read-only session.
+No server may run DDL at startup. Only the serialized migration job receives
+DDL privileges.
 
-## Shared schema source
+## Dual-source release provenance
 
-Schema definitions come from [`ORESoftware/k8s-libs-and-shared-defs`](https://github.com/ORESoftware/k8s-libs-and-shared-defs), never from independently authored entities here. [`shared-defs.lock.json`](shared-defs.lock.json) pins revision `c8bdc06d74746acc6439f9527ebd02697fdf028b`, organization slice `sonus-auris`, schema `sonus_auris`, and the generated Rust SeaORM adapter path.
+Every releasable version of this crate must identify one immutable
+`sonus-auris-lib-core` release containing:
 
-Each release pins the exact shared-definition revision/digest it was generated against; a major version bump is treated as a schema event and participates in the expand/contract compatibility window. The crate targets PostgreSQL and CockroachDB (postgres wire protocol) through SeaORM's `sqlx-postgres` backend, but a shared codebase does not make the engines behave identically — engine-specific behavior, notably retryable serialization errors, must be tested per engine.
+- the authored TypeSpec P0 tree and independently authored JSON Schema P1 tree;
+- the common authored PostgreSQL extension bundle for RLS, policies,
+  functions, triggers, indexes, grants, and provider-specific behavior;
+- normalized P0-versus-P1 source, catalog, ORM, behavioral, and wire parity
+  reports;
+- the reviewed desired SQL digest;
+- Diesel and SeaORM generation manifests; and
+- the compatible migration window and required database capabilities.
 
-The connection and feature boundary is implemented now. Importing the generated Sonus Auris entity slice and replacing the generic connection-state reads with business-specific named queries remains a merge gate; do not expose the generated crate wholesale to consumers.
+The TypeSpec-emitted JSON Schema is diagnostic output. It must not overwrite
+the independently maintained P1 tree. Either source may veto a release when a
+semantic mismatch is unexplained.
 
-## Usage
+The existing `shared-defs.lock.json` is retained as historical provenance for
+the pre-extraction baseline. It must not remain a dependency or the source of a
+new release after Sonus lib-core publishes the replacement artifacts.
 
-Default web/read consumer:
+## Diesel primary, SeaORM secondary
 
-```toml
-sonus-auris-orm-core = { git = "https://github.com/sonus-auris/sonus-auris-orm-core.git", rev = "<merge-commit>" }
+The target generation sequence is:
+
+```text
+TypeSpec P0 -> SQL A + Diesel candidate A + normalized IR A
+JSON P1     -> SQL B + Diesel candidate B + normalized IR B
+
+SQL A + extension E -> scratch PostgreSQL A -> sea-orm-cli -> SeaORM A
+SQL B + extension E -> scratch PostgreSQL B -> sea-orm-cli -> SeaORM B
+
+normalized(A) == normalized(B) == reviewed desired release
 ```
 
-```rust,no_run
-use sonus_auris_orm_core::{connect_read_only, read};
+Diesel is primary because its explicit Rust schema/model layer can drive the
+main compile-time checked runtime and can assist with reviewed schema-diff
+migration drafts. Diesel diff output is not complete PostgreSQL DDL: defaults,
+custom checks, RLS policies, guard functions, grants, and similar extensions
+remain authored in lib-core and are reviewed as part of the desired release.
 
-# async fn example() -> Result<(), sonus_auris_orm_core::OrmError> {
-let context = connect_read_only("postgres://sonus_web_ro@db/sonus").await?;
-read::ping(&context).await?;
-# Ok(())
-# }
+SeaORM is secondary because `sea-orm-cli` reads a database and generates
+entities; it does not turn Rust entities into the complete desired DDL. Running
+it against both scratch databases gives an independent DB-readback check. The
+normalized entity manifests must agree before a release, but consumers still
+receive named opaque operations instead of either ORM's generated surface.
+
+## Zed dependency graph
+
+The desired Zed relationship is:
+
+```text
+sonus-auris-lib-core@immutable-release
+        -> sonus-auris-orm-core@immutable-release
+        -> web/api/admin consumers by explicit capability
 ```
 
-API/write consumer:
-
-```toml
-sonus-auris-orm-core = {
-  git = "https://github.com/sonus-auris/sonus-auris-orm-core.git",
-  rev = "<merge-commit>",
-  default-features = false,
-  features = ["read-write"]
-}
-```
-
-```rust,no_run
-use sonus_auris_orm_core::{connect_read_write, write};
-
-# async fn example() -> Result<(), sonus_auris_orm_core::OrmError> {
-let context = connect_read_write("postgres://sonus_api_rw@db/sonus").await?;
-write::ping(&context).await?;
-# Ok(())
-# }
-```
+`sonus-auris-orm-core` must pin the exact lib-core release and artifact
+digests. It must not import SQL or generated ORM artifacts from
+`ORESoftware/k8s-libs-and-shared-defs`. Candidate artifacts live only in CI;
+only a parity-clean, reviewed release may enter the Zed dependency graph.
 
 ## Migrations
 
-There is no migration tooling in this crate. The Sonus Auris API server owns compatibility requirements, and a separate `declarative-migrations`/`dpm` release job applies reviewed DDL with the project-scoped migrator identity. Runtime API and web identities do not receive DDL rights.
+`declarative-migrations`/`dpm` compares the lib-core desired SQL release with a
+fresh live catalog dump, produces a reviewable plan, verifies it against a
+shadow database, applies it under the Sonus migrator identity, and verifies
+convergence. Shared-platform plans must fail closed if they touch objects that
+are not in the declared Sonus ownership manifest.
+
+Data backfills, ownership and role changes, provider migration ledgers, and
+other behavior outside declarative DDL require explicit companion steps. A
+clean structural diff alone is not sufficient release evidence.
+
+## Current implementation gap
+
+The read/write feature boundary and startup-session checks exist today. The
+following work is still required before this document describes released
+runtime behavior:
+
+- resolve the `public` versus `sonus_auris` namespace contradiction from live
+  evidence;
+- publish the dual-source lib-core artifacts and parity reports;
+- replace the shared-definitions Zed dependency with the org-owned lib-core
+  release;
+- generate, normalize, and review both Diesel and SeaORM candidates;
+- replace generic connection-state probes with named Sonus operations; and
+- run PostgreSQL and CockroachDB compatibility lanes with real least-privilege
+  roles.
 
 ## Validation
 
@@ -76,11 +149,17 @@ cargo test --all-targets --all-features
 cargo test --doc
 ```
 
-A live denial probe is included but ignored by default because it performs an intentionally forbidden DDL statement against a disposable database:
+A live denial probe is intentionally ignored by default because it attempts
+forbidden DDL against a disposable database:
 
 ```sh
 ORM_CORE_TEST_DATABASE_URL='postgres://sonus_web_ro@localhost/sonus_test' \
   cargo test live_read_only_context_rejects_schema_ddl -- --ignored
 ```
 
-Run that lane against both PostgreSQL and CockroachDB with a real SELECT-only web principal before releasing a consumer pin.
+## References
+
+- [Diesel schema-diff migration generation](https://diesel.rs/news/2_1_0_release.html)
+- [SeaORM database-to-entity generation](https://www.sea-ql.org/SeaORM/docs/0.12.x/generate-entity/sea-orm-cli/)
+- [TypeSpec custom emitters](https://typespec.io/docs/extending-typespec/emitters-basics/)
+- [Declarative Migrations](https://github.com/declarative-migrations/declarative-postgres-migrate.rs)
