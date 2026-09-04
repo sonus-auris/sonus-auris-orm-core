@@ -50,21 +50,23 @@ DDL privileges.
 
 ## Dual-source release provenance
 
-Every releasable version of this crate must identify one immutable
-`sonus-auris-lib-core` release containing:
+Every releasable version of this crate must identify one immutable,
+jointly-certified `sonus-auris-lib-core` release containing:
 
-- the authored TypeSpec P0 tree and independently authored JSON Schema P1 tree;
+- the co-equal, independently authored TypeSpec and JSON Schema/OpenAPI trees;
 - the common authored PostgreSQL extension bundle for RLS, policies,
   functions, triggers, indexes, grants, and provider-specific behavior;
-- normalized P0-versus-P1 source, catalog, ORM, behavioral, and wire parity
+- normalized peer-source, catalog, ORM, behavioral, and wire parity
   reports;
 - the reviewed desired SQL digest;
 - Diesel and SeaORM generation manifests; and
 - the compatible migration window and required database capabilities.
 
-The TypeSpec-emitted JSON Schema is diagnostic output. It must not overwrite
-the independently maintained P1 tree. Either source may veto a release when a
-semantic mismatch is unexplained.
+The production graph never generates either authored source from the other.
+Optional cross-translations are diagnostic witnesses only; they cannot feed
+SQL, Protobuf, OpenAPI, interfaces, clients, ORM code, migration artifacts, or
+a release. Either authored source vetoes a release when a semantic mismatch is
+unexplained.
 
 The existing `shared-defs.lock.json` is retained as historical provenance for
 the pre-extraction baseline. It must not remain a dependency or the source of a
@@ -75,8 +77,8 @@ new release after Sonus lib-core publishes the replacement artifacts.
 The target generation sequence is:
 
 ```text
-TypeSpec P0 -> SQL A + Diesel candidate A + normalized IR A
-JSON P1     -> SQL B + Diesel candidate B + normalized IR B
+TypeSpec lane            -> SQL A + Diesel A + IR A + Protobuf/gRPC
+JSON Schema/OpenAPI lane -> SQL B + Diesel B + IR B + interfaces/clients
 
 SQL A + extension E -> scratch PostgreSQL A -> sea-orm-cli -> SeaORM A
 SQL B + extension E -> scratch PostgreSQL B -> sea-orm-cli -> SeaORM B
@@ -113,11 +115,22 @@ only a parity-clean, reviewed release may enter the Zed dependency graph.
 
 ## Migrations
 
-`declarative-migrations`/`dpm` compares the lib-core desired SQL release with a
-fresh live catalog dump, produces a reviewable plan, verifies it against a
-shadow database, applies it under the Sonus migrator identity, and verifies
-convergence. Shared-platform plans must fail closed if they touch objects that
-are not in the declared Sonus ownership manifest.
+`sonus-auris-infra` is the sole migration-execution owner. Its org-fixed,
+non-secret target manifest pins the matching lib-core desired SQL release and
+DPM version through Zed, resolves direct/unpooled connection references, keeps
+read-only planning and DDL apply identities separate, obtains the org/schema
+lock, and publishes the plan/apply/convergence receipt. The standard
+`db-plan`, `db-verify`, `db-apply`, and `db-status` entry points use a
+flags-2-env-governed Rust wrapper; credentials are runtime-injected and never
+passed as flags.
+
+`declarative-migrations`/`dpm` compares that certified release with a fresh live
+catalog dump, produces a reviewable plan, verifies it against a shadow
+database, requires the reviewed digest and unchanged live fingerprint before
+apply, and verifies an empty residual diff. Shared-platform plans fail closed
+if they touch objects outside the declared Sonus schema and dependency closure.
+This crate exposes neither DPM nor a migration credential; it only provides a
+read-only compatibility/readiness check for the expected schema release.
 
 Data backfills, ownership and role changes, provider migration ledgers, and
 other behavior outside declarative DDL require explicit companion steps. A
