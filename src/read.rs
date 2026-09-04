@@ -39,9 +39,12 @@ impl ConnectionState {
 
 /// Return the verified policy state without exposing a SeaORM connection.
 pub async fn connection_state(context: &ReadContext) -> Result<ConnectionState, OrmError> {
-    inspect_connection(context.connection())
-        .await
-        .map(ConnectionState::from_internal)
+    let sea = inspect_connection(context.connection()).await?;
+    let diesel = context.diesel_state().await?;
+    if sea != diesel {
+        return Err(OrmError::policy("Diesel and SeaORM read policies disagree"));
+    }
+    Ok(ConnectionState::from_internal(sea))
 }
 
 /// Lightweight named readiness read for consumers and health checks.
