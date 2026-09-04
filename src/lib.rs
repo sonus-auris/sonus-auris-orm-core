@@ -18,6 +18,7 @@
 compile_error!("sonus-auris-orm-core requires the read-only feature; read-write includes it");
 
 mod connection;
+mod diesel_connection;
 mod error;
 pub mod read;
 mod schema;

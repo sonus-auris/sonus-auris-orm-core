@@ -9,6 +9,8 @@ vcs = "git"
 url = "https://github.com/sonus-auris/sonus-auris-orm-core"
 
 [dependencies]
+"sonus-auris/sonus-auris-interfaces" = "^0.1.0"
+"sonus-auris/sonus-auris-lib-core" = "^0.1.0"
 "oresoftware/k8s-libs-and-shared-defs" = "^0.1.0"
 
 [publish]

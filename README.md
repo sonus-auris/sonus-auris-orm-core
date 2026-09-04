@@ -1,6 +1,25 @@
 # sonus-auris-orm-core
 
-Canonical **SeaORM** boundary for the `sonus-auris` organization. It is the only repository that may publish the shared Sonus Auris ORM package; `sonus-auris-lib` may consume or re-export it temporarily but must not define a second authoritative ORM crate.
+Read contexts now use both SeaORM and a private Diesel companion. The Diesel
+pool has one connection in addition to the configured SeaORM pool. Acquisition
+is bounded, synchronous work runs on a blocking worker, and cancellation keeps
+its permit until that worker finishes. Both drivers install the same schema and
+read-only session policy; `read::connection_state` and `read::ping` reject any
+disagreement. Neither driver exposes a connection to the consumer.
+
+Run the ignored `live_both_drivers_agree_on_read_policy` test with
+`ORM_CORE_TEST_DATABASE_URL` targeting a disposable database containing the org
+schema. Native builds need PostgreSQL's libpq development library.
+
+The Zed manifest declares this organization's interfaces and lib-core. Frozen
+artifact resolution remains a separate release gate while the registry is
+unavailable; these declarations do not certify a successful Zed installation.
+
+Canonical SeaORM and Diesel boundary for the `sonus-auris` organization.
+The requested dependency direction is orm-core importing shared lib-core and
+all four servers importing both; lib-core must not import orm-core. Existing
+business operations and consumer dependencies still need migration before
+publishing a replacement package.
 
 Governed by [`sonus-auris/.github/SERVICE_AND_DATA_ARCHITECTURE.md`](https://github.com/sonus-auris/.github/blob/main/SERVICE_AND_DATA_ARCHITECTURE.md).
 

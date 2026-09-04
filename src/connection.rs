@@ -54,6 +54,7 @@ impl ConnectPolicy {
 #[derive(Clone)]
 pub struct ReadContext {
     connection: DatabaseConnection,
+    diesel: crate::diesel_connection::DieselReadPool,
 }
 
 impl fmt::Debug for ReadContext {
@@ -66,6 +67,10 @@ impl fmt::Debug for ReadContext {
 }
 
 impl ReadContext {
+    pub(crate) async fn diesel_state(&self) -> Result<InternalConnectionState, OrmError> {
+        self.diesel.inspect().await
+    }
+
     pub(crate) fn connection(&self) -> &DatabaseConnection {
         &self.connection
     }
@@ -118,7 +123,10 @@ pub async fn connect_read_only_with_policy(
     policy: ConnectPolicy,
 ) -> Result<ReadContext, OrmError> {
     let connection = connect(database_url, policy, Role::ReadOnly).await?;
-    Ok(ReadContext { connection })
+    let diesel =
+        crate::diesel_connection::DieselReadPool::connect(database_url, policy.acquire_timeout)
+            .await?;
+    Ok(ReadContext { connection, diesel })
 }
 
 /// Open an opaque write context. This symbol does not exist unless the caller
