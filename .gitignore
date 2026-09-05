@@ -3,3 +3,9 @@ Cargo.lock
 /.vendor/.zed/
 .env
 .env.*
+
+# Repository-local temporary data and authorized Git worktrees
+tmp
+temp
+tmp/worktrees
+temp/worktrees
