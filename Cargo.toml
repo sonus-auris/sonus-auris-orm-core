@@ -17,6 +17,8 @@ read-only = []
 read-write = ["read-only"]
 
 [dependencies]
+diesel = { version = "2.2", default-features = false, features = ["postgres", "r2d2"] }
+tokio = { version = "1", features = ["rt", "sync", "time"] }
 sea-orm = { version = "1", default-features = false, features = [
   "sqlx-postgres",
   "runtime-tokio-rustls",
