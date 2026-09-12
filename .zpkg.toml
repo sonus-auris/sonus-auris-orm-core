@@ -34,10 +34,3 @@ adapter = "rust"
 # This private boundary is consumed through an exact reviewed Git/Zed package
 # object. Do not advertise a native registry until Cargo publication and
 # licensing are explicitly enabled and certified.
-
-[scripts]
-format = "cargo fmt --all -- --check"
-lint = "cargo clippy --all-targets --all-features -- -D warnings"
-test-default = "cargo test --all-targets"
-test-read-write = "cargo test --all-targets --all-features"
-test-doc = "cargo test --doc"
