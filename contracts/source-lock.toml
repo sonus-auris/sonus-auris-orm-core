@@ -1,0 +1,11 @@
+format = "ores.core-source-lock/v1"
+status = "bootstrap"
+interfaces_repository = "sonus-auris/sonus-auris-interfaces"
+typespec_commit = "UNPINNED"
+typespec_sha256 = "UNPINNED"
+json_schema_commit = "UNPINNED"
+json_schema_sha256 = "UNPINNED"
+comparator_version = "BOOTSTRAP"
+
+# Release remains blocked until independent TypeSpec/JSON Schema identities,
+# digests, and TJSV evidence are sealed.
