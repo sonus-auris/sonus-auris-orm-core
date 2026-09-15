@@ -1,0 +1,8 @@
+format = "ores.orm-core-tooling/v1"
+shared_interfaces_repository = "ORESoftware/ores-interfaces"
+shared_interfaces_role = "validation-primitives-only"
+validator_repository = "ORESoftware/typespec-json-schema-validator"
+validator_command = "tjsv"
+auditor_repository = "ORESoftware/ores-cli"
+auditor_profile = "orm-core"
+tjsv_report = "artifacts/tjsv-report.json"
