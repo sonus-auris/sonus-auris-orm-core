@@ -1,0 +1,52 @@
+name: Rust recording append model
+
+on:
+  pull_request:
+    paths:
+      - 'conformance/recording_append_model.rs'
+      - '.github/workflows/recording-append-model-rust.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-recording-append-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bounded-model-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact candidate
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git diff --check
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt
+
+      - name: Format checker
+        run: rustfmt +1.90.0 --check conformance/recording_append_model.rs
+
+      - name: Compile checker with warnings denied
+        run: rustc +1.90.0 --edition=2021 -D warnings conformance/recording_append_model.rs -o /tmp/recording-append-model
+
+      - name: Unit-test checker
+        run: |
+          rustc +1.90.0 --edition=2021 -D warnings --test conformance/recording_append_model.rs -o /tmp/recording-append-model-tests
+          /tmp/recording-append-model-tests
+
+      - name: Execute bounded model
+        run: /tmp/recording-append-model
