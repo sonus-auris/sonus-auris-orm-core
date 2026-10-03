@@ -45,16 +45,14 @@ fn every_write_symbol_is_feature_gated() {
 fn shared_schema_source_is_exact_and_external() {
     let lock = read("shared-defs.lock.json");
     for contract in [
-        "c8bdc06d74746acc6439f9527ebd02697fdf028b",
+        "\"repository\": \"https://github.com/ORESoftware/k8s-libs-and-shared-defs\"",
+        "\"revision\": \"c8bdc06d74746acc6439f9527ebd02697fdf028b\"",
         "\"org_slice\": \"sonus-auris\"",
         "\"schema\": \"sonus_auris\"",
-        "pg-defs/generated/rust/sea-orm",
+        "\"generated_adapter\": \"pg-defs/generated/rust/sea-orm\"",
     ] {
         assert!(lock.contains(contract), "shared-defs lock lost {contract}");
     }
-
-    let zpkg = read(".zpkg.toml");
-    assert!(zpkg.contains("\"oresoftware/k8s-libs-and-shared-defs\""));
 }
 
 #[test]

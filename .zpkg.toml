@@ -3,6 +3,7 @@ org = "sonus-auris"
 name = "sonus-auris-orm-core"
 version = "0.1.0"
 description = "Canonical opaque SeaORM boundary for the sonus-auris organization"
+language = "rust"
 
 [package.repository]
 vcs = "git"
@@ -11,7 +12,6 @@ url = "https://github.com/sonus-auris/sonus-auris-orm-core"
 [dependencies]
 "sonus-auris/sonus-auris-interfaces" = "^0.1.0"
 "sonus-auris/sonus-auris-lib-core" = "^0.1.0"
-"oresoftware/k8s-libs-and-shared-defs" = "^0.1.0"
 
 [publish]
 include_readme = true
@@ -19,8 +19,14 @@ tag_format = "v{version}"
 exclude = [
   ".env",
   ".env.*",
+  "env/dec/**",
   ".vendor/.zed/**",
+  ".zed/**",
+  ".zed-pack/**",
   "target/**",
+  "**/target/**",
+  "**/node_modules/**",
+  "**/.dart_tool/**",
   "**/*.log",
 ]
 
