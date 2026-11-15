@@ -8,7 +8,7 @@
 
 use crate::{
     connection::{inspect_connection, InternalConnectionState},
-    OrmError, ReadContext,
+    OrmError, ReadContext, ORG_SCHEMA,
 };
 
 /// Safe, implementation-independent evidence about the active connection.
@@ -37,24 +37,66 @@ impl ConnectionState {
     }
 }
 
-/// Return the verified policy state without exposing a SeaORM connection.
+/// Reject policy drift even when the SeaORM and Diesel sessions drift together.
+/// Both drivers agreeing on an unexpected schema is not proof of tenant isolation.
+fn require_read_policy(state: &InternalConnectionState) -> Result<(), OrmError> {
+    if state.schema != ORG_SCHEMA {
+        return Err(OrmError::policy(format!(
+            "read context resolved schema {:?}; expected {ORG_SCHEMA:?}",
+            state.schema
+        )));
+    }
+    if !state.transaction_read_only {
+        return Err(OrmError::policy(
+            "read context lost its read-only transaction policy",
+        ));
+    }
+    Ok(())
+}
+
+/// Return verified policy state without exposing a SeaORM connection.
+/// The two independent drivers must agree AND satisfy the canonical schema and
+/// read-only policy. A shared drift cannot be reported as a healthy connection.
 pub async fn connection_state(context: &ReadContext) -> Result<ConnectionState, OrmError> {
     let sea = inspect_connection(context.connection()).await?;
     let diesel = context.diesel_state().await?;
     if sea != diesel {
         return Err(OrmError::policy("Diesel and SeaORM read policies disagree"));
     }
+    require_read_policy(&sea)?;
     Ok(ConnectionState::from_internal(sea))
 }
 
 /// Lightweight named readiness read for consumers and health checks.
 pub async fn ping(context: &ReadContext) -> Result<(), OrmError> {
-    let state = connection_state(context).await?;
-    if state.transaction_read_only() {
-        Ok(())
-    } else {
-        Err(OrmError::policy(
-            "read context lost its read-only transaction policy",
-        ))
+    connection_state(context).await.map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn state(schema: &str, read_only: bool) -> InternalConnectionState {
+        InternalConnectionState {
+            schema: schema.to_owned(),
+            transaction_read_only: read_only,
+        }
+    }
+
+    #[test]
+    fn expected_schema_and_read_only_policy_are_admitted() {
+        assert!(require_read_policy(&state(ORG_SCHEMA, true)).is_ok());
+    }
+
+    #[test]
+    fn both_drivers_cannot_collectively_drift_to_another_schema() {
+        let result = require_read_policy(&state("public", true));
+        assert!(matches!(result, Err(OrmError::PolicyViolation(_))));
+    }
+
+    #[test]
+    fn canonical_schema_does_not_override_read_only_requirement() {
+        let result = require_read_policy(&state(ORG_SCHEMA, false));
+        assert!(matches!(result, Err(OrmError::PolicyViolation(_))));
     }
 }
